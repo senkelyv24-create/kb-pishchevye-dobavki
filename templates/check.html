@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Проверка состава{% endblock %}
+{% block body %}
+<section class="search-block">
+  <h1>Проверка состава</h1>
+  <p class="hint">Машина вывода читает факты добавок и правила из <code>data/rules.json</code>. Несколько индексов пишут через запятую.</p>
+  <form class="check-form" action="{{ url_for('check') }}" method="post">
+    <label>
+      Индексы в рецептуре
+      <input name="codes" value="{{ raw }}" placeholder="E102, E330, E951" required>
+    </label>
+    <label>
+      Категория продукта
+      <select name="category">
+        {% for name in categories %}
+        <option value="{{ name }}" {% if category == name %}selected{% endif %}>{{ name if name else "не выбрана" }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      Доля сахароспиртов, %
+      <input name="polyol" value="{{ share }}" inputmode="decimal" placeholder="например 12">
+    </label>
+    <button type="submit">Получить заключение</button>
+  </form>
+</section>
+
+{% if report %}
+<section class="verdict verdict-{{ report.verdict.level }}">
+  <p class="hit-kicker">Итог</p>
+  <h2>{{ report.verdict.title }}</h2>
+  <p>{{ report.verdict.text }}</p>
+</section>
+<section class="results">
+  <h2 class="side-title">Сработавшие правила</h2>
+  {% if report.fired %}
+  <ol class="hits">
+    {% for hit in report.fired %}
+    <li class="rule rule-{{ hit.level }}">
+      <div class="hit-kicker">
+        <span>{{ hit.id }}{% if hit.code %} · {{ hit.code }}{% endif %}</span>
+        <span class="pill pill-{{ hit.level }}">{{ hit.level }}</span>
+      </div>
+      <h2>{{ hit.title }}</h2>
+      <p>{{ hit.text }}</p>
+    </li>
+    {% endfor %}
+  </ol>
+  {% else %}
+  <p class="empty">Правила не сработали.</p>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

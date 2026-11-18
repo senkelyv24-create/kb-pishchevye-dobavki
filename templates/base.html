@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}База знаний по пищевым добавкам{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="mast">
+    <div class="mast-top">
+      <a class="brand" href="{{ url_for('index') }}">БЗ · ДОБАВКИ</a>
+      <nav class="tools">
+        <a href="{{ url_for('index') }}">Поиск</a>
+        <a href="{{ url_for('check') }}">Проверка состава</a>
+      </nav>
+    </div>
+    <p class="wordmark">БАЗА ЗНАНИЙ</p>
+    <nav class="sections">
+      <a href="{{ url_for('index') }}" {% if not group %}class="is-on"{% endif %}>Все</a>
+      {% for key, label in groups.items() %}
+      <a href="{{ url_for('index', group=key, q=query|default('', true), status=status|default('', true)) }}" {% if group == key %}class="is-on"{% endif %}>{{ label }}</a>
+      {% endfor %}
+    </nav>
+  </header>
+  <main>
+    {% block body %}{% endblock %}
+  </main>
+  <footer>
+    <p>Прототип курсового проекта. Факты — приложение 2 ТР ТС 029/2012 в редакции от 27.02.2024. Это не замена текста регламента: уровень для конкретного продукта смотрят в указанном приложении.</p>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}{{ item.name_ru }} {{ item.code }}{% endblock %}
+{% block body %}
+<article class="card">
+  <p class="hit-kicker">
+    <a href="{{ url_for('index', group=item.group) }}">{{ item.functions | join(" · ") }}</a>
+  </p>
+  <h1>{{ item.name_ru }}</h1>
+  <p class="en">{{ item.name_en }} · {{ item.code }}</p>
+  <p class="lead">{{ item.summary }}</p>
+  <dl class="facts">
+    <div>
+      <dt>Статус в ЕАЭС</dt>
+      <dd class="pill pill-{{ item.status }}">{{ "Исключена из приложения 2 с 27.02.2024" if item.status == "excluded" else "Есть в приложении 2" }}</dd>
+    </div>
+    <div>
+      <dt>Приложения с нормами</dt>
+      <dd>{% if item.annexes %}{{ item.annexes | join(", ") }}{% else %}нет: позиция исключена{% endif %}</dd>
+    </div>
+    <div>
+      <dt>Происхождение</dt>
+      <dd>{{ item.origin }}</dd>
+    </div>
+    <div>
+      <dt>Редакция 27.02.2024</dt>
+      <dd>{{ "строка изменена" if item.changed_2024 else "без пометки об изменении строки" }}</dd>
+    </div>
+    <div>
+      <dt>Сравнение с ЕС</dt>
+      <dd>{{ item.eu_note }}</dd>
+    </div>
+    <div>
+      <dt>Как писать в составе</dt>
+      <dd>{{ item.functions[0] }} {{ item.code }}</dd>
+    </div>
+  </dl>
+  <p class="back"><a href="{{ url_for('check') }}">Проверить эту добавку в составе</a></p>
+</article>
+{% if related %}
+<section class="results">
+  <h2 class="side-title">Рядом в том же разделе</h2>
+  <ol class="hits">
+    {% for row in related %}
+    <li>
+      <a href="{{ url_for('detail', code=row.code) }}">
+        <div class="hit-kicker"><span>{{ row.code }}</span></div>
+        <h2>{{ row.name_ru }}</h2>
+        <p>{{ row.summary }}</p>
+      </a>
+    </li>
+    {% endfor %}
+  </ol>
+</section>
+{% endif %}
+{% endblock %}
