@@ -153,35 +153,90 @@ def add_table(doc, headers, rows):
     para(doc, "", indent=False)
 
 
-def title_page(doc):
+def title_line(doc, text="", *, bold=False, center=True):
+    """Строка титульного листа: одинарный интервал, как в шаблоне кафедры."""
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER if center else WD_ALIGN_PARAGRAPH.LEFT
+    p.paragraph_format.line_spacing = 1.0
+    p.paragraph_format.space_before = Pt(0)
+    p.paragraph_format.space_after = Pt(0)
+    p.paragraph_format.first_line_indent = Cm(0)
+    run = p.add_run(text)
+    set_run_font(run, 14, bold)
+    return p
+
+
+def supervisor_block(doc):
+    """Правая колонка без рамок — так руководитель стоит в образце титульного листа."""
+    table = doc.add_table(rows=1, cols=2)
+    table.autofit = False
+    table.allow_autofit = False
+    tbl = table._tbl
+    tbl_pr = tbl.tblPr
+    borders = OxmlElement("w:tblBorders")
+    for edge in ("top", "left", "bottom", "right", "insideH", "insideV"):
+        element = OxmlElement(f"w:{edge}")
+        element.set(qn("w:val"), "nil")
+        element.set(qn("w:sz"), "0")
+        element.set(qn("w:space"), "0")
+        element.set(qn("w:color"), "auto")
+        borders.append(element)
+    tbl_pr.append(borders)
+    widths = (Cm(8.2), Cm(8.2))
+    for cell, width in zip(table.rows[0].cells, widths):
+        cell.width = width
     lines = [
+        "Научный руководитель",
+        "Зайкова Светлана Алексеевна,",
+        "доцент кафедры",
+        "системного программирования и компьютерной безопасности,",
+        "кандидат физ.-мат. наук, доцент",
+    ]
+    cell = table.rows[0].cells[1]
+    for index, line in enumerate(lines):
+        paragraph = cell.paragraphs[0] if index == 0 else cell.add_paragraph()
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        paragraph.paragraph_format.line_spacing = 1.0
+        paragraph.paragraph_format.space_before = Pt(0)
+        paragraph.paragraph_format.space_after = Pt(0)
+        paragraph.paragraph_format.first_line_indent = Cm(0)
+        run = paragraph.add_run(line)
+        set_run_font(run, 14)
+    left = table.rows[0].cells[0].paragraphs[0]
+    left.paragraph_format.first_line_indent = Cm(0)
+    left.paragraph_format.line_spacing = 1.0
+
+
+def title_page(doc):
+    for line in (
         "МИНИСТЕРСТВО ОБРАЗОВАНИЯ РЕСПУБЛИКИ БЕЛАРУСЬ",
+        "",
         "Учреждение образования",
         "«Гродненский государственный университет имени Янки Купалы»",
+        "",
         "Факультет математики и информатики",
         "Кафедра системного программирования и компьютерной безопасности",
-    ]
-    for line in lines:
-        para(doc, line, center=True, indent=False)
-    for _ in range(2):
-        para(doc, "", center=True, indent=False)
-    para(doc, "СЕНКЕЛЬ ЯРОСЛАВ ВИТАЛЬЕВИЧ", center=True, bold=True, indent=False)
-    para(doc, "", center=True, indent=False)
-    para(doc, "Проектирование базы знаний по пищевым добавкам", center=True, bold=True, indent=False)
-    para(doc, "", center=True, indent=False)
-    para(doc, "Курсовой проект по учебной дисциплине", center=True, indent=False)
-    para(doc, "«Проектирование баз знаний»", center=True, indent=False)
-    para(doc, "студента 3 курса специальности", center=True, indent=False)
-    para(doc, "6-05-0611-03 «Искусственный интеллект»", center=True, indent=False)
-    para(doc, "дневной формы получения образования", center=True, indent=False)
-    para(doc, "", center=True, indent=False)
-    para(doc, "Научный руководитель", center=True, indent=False)
-    para(doc, "Зайкова Светлана Алексеевна,", center=True, indent=False)
-    para(doc, "доцент кафедры", center=True, indent=False)
-    para(doc, "системного программирования и компьютерной безопасности,", center=True, indent=False)
-    para(doc, "кандидат физ.-мат. наук, доцент", center=True, indent=False)
-    para(doc, "", center=True, indent=False)
-    para(doc, "Гродно 2026", center=True, indent=False)
+    ):
+        title_line(doc, line)
+    for _ in range(6):
+        title_line(doc)
+    title_line(doc, "СЕНКЕЛЬ ЯРОСЛАВ ВИТАЛЬЕВИЧ")
+    title_line(doc)
+    title_line(doc, "Проектирование базы знаний по пищевым добавкам", bold=True)
+    title_line(doc)
+    title_line(doc)
+    title_line(doc, "Курсовой проект  по учебной дисциплине")
+    title_line(doc, "«Проектирование баз знаний»")
+    student = title_line(doc, "студента 3 курса специальности")
+    student.add_run().add_break()
+    specialty = student.add_run("6-05-0611-03 «Искусственный интеллект»")
+    set_run_font(specialty, 14)
+    for _ in range(3):
+        title_line(doc)
+    supervisor_block(doc)
+    for _ in range(9):
+        title_line(doc)
+    title_line(doc, "Гродно 2026")
 
 
 def build(page_note: str) -> Document:
@@ -191,46 +246,90 @@ def build(page_note: str) -> Document:
     doc.add_page_break()
 
     para(doc, "РЕЗЮМЕ", center=True, bold=True, indent=False)
-    para(doc, "Сенкель Ярослав Витальевич", center=True, indent=False)
-    para(doc, "Проектирование базы знаний по пищевым добавкам", center=True, indent=False)
-    para(doc, f"Пояснительная записка: {page_note}, 4 рисунка, 2 таблицы, 12 источников.", center=True, indent=False)
+    para(doc, "", indent=False)
+    para(doc, f"Курсовой проект: {page_note} с., 4 рис., 2 табл., 12 источников.", indent=True)
+    para(doc, "", indent=False)
+    para(doc, "Проектирование базы знаний по пищевым добавкам", indent=True)
+    para(doc, "", indent=False)
     para(
         doc,
-        "Ключевые слова: база знаний, пищевая добавка, индекс E, продукционное правило, прямой вывод, "
-        "ТР ТС 029/2012, поиск.",
-        indent=True,
+        "Объект исследования: сведения о пищевых добавках, по которым отличают разрешённое применение "
+        "от запрета, обязательной надписи и вопроса, который прототип закрыть не может.",
     )
     para(
         doc,
-        "Объект исследования — сведения о пищевых добавках, которые нужны, чтобы отличить разрешённое применение "
-        "от запрета, обязательной надписи и нерешённого вопроса. Предмет — способ представить эти сведения так, "
-        "чтобы программа объясняла вывод, а не только показывала строку таблицы.",
+        "Предмет исследования: представление этих сведений фреймами и продукционными правилами "
+        "с объяснимым выводом по составу продукта.",
     )
     para(
         doc,
-        "Цель работы — рабочий прототип базы знаний по пищевым добавкам. В прототипе 45 объектов приложения 2 "
-        "ТР ТС 029/2012 в редакции от 27.02.2024 и 13 правил. Поиск устроен как публичная поисковая страница: "
-        "запрос, разделы, статусы, список карточек и постраничный просмотр. Отдельный сценарий проверяет состав "
-        "продукта и называет сработавшие правила.",
+        "Цель работы: разработать рабочий прототип базы знаний по пищевым добавкам, который ищет добавку "
+        "по индексу и бытовому имени и проверяет короткий состав, называя сработавшее правило.",
     )
     para(
         doc,
-        "Проверены 15 автоматических тестов и контрольные запросы «сода», «стевия», «глутамат», «Е102». "
-        "Запрос «стевия» возвращает две разные позиции: разрешённые стевиолгликозиды E960 и исключённые с "
-        "27.02.2024 порошок листьев, сироп и экстракты. Для напитка с E211 и E300 правило предупреждает о "
-        "технологическом риске, не называя его запретом регламента. Прототип не подставляет числовые нормы "
-        "конкретного продукта: их по-прежнему читают в приложениях регламента.",
+        "Методы исследования: анализ ТР ТС 029/2012 и существующих справочников; фреймовая модель; "
+        "продукционные правила и прямой вывод; реализация прототипа на Python и Flask; тестирование "
+        "на контрольных запросах и сценариях состава.",
+    )
+    para(
+        doc,
+        "Исследования и разработки: разобрана редакция перечня от 27.02.2024, спроектированы фреймы добавки "
+        "и продукта и 13 правил. Реализован поиск по образцу публичной поисковой страницы и отдельная проверка "
+        "состава. В прототипе 45 объектов. Запрос «стевия» возвращает две позиции: разрешённые стевиолгликозиды "
+        "E960 и исключённые с 27.02.2024 порошок листьев, сироп и экстракты. Пятнадцать автоматических тестов "
+        "проходят. Числовые нормы конкретного продукта в прототип не подставлялись.",
+    )
+    para(
+        doc,
+        "Область возможного практического применения: учебная проверка рецептуры и маркировки; подготовка "
+        "к чтению приложений регламента; сравнение статуса одной добавки в ЕАЭС и ЕС. Прототип не заменяет "
+        "текст ТР ТС 029/2012 и не является документом для декларации соответствия.",
     )
 
+    para(doc, "", indent=False)
     para(doc, "SUMMARY", center=True, bold=True, indent=False, space_before=12)
+    para(doc, "", indent=False)
+    para(doc, f"Course project: {page_note} pages, 4 figures, 2 tables, 12 sources.", indent=True)
+    para(doc, "", indent=False)
+    para(doc, "Design of a knowledge base on food additives", indent=True)
+    para(doc, "", indent=False)
     para(
         doc,
-        "The project is a working knowledge-base prototype on food additives. Facts follow Annex 2 of TR CU 029/2012 "
-        "as amended on 27 February 2024. Thirteen production rules explain a conclusion: banned, labelling required, "
-        "or still to be checked. The search screen follows the layout of a public search page: a query, section links, "
-        "status filters, result cards and pages. The prototype keeps steviol glycosides and stevia-leaf preparations "
-        "as two different objects. It does not replace the numeric limits of the regulation.",
-        indent=True,
+        "Object of the study: facts about food additives that separate a permitted use from a ban, "
+        "a mandatory label, and a question the prototype cannot close.",
+    )
+    para(
+        doc,
+        "Subject of the study: representing these facts as frames and production rules with an "
+        "explainable conclusion for a product formula.",
+    )
+    para(
+        doc,
+        "Objective: to develop a working knowledge-base prototype on food additives that finds an additive "
+        "by its code or common name and checks a short formula, naming the rule that fired.",
+    )
+    para(
+        doc,
+        "Research methods: analysis of TR CU 029/2012 and existing reference lists; a frame model; "
+        "production rules and forward chaining; a Python and Flask prototype; tests on control queries "
+        "and formula scenarios.",
+    )
+    para(
+        doc,
+        "Research and development: the list as amended on 27 February 2024 was analysed, and frames of an "
+        "additive and a product were designed together with 13 rules. A search page patterned on a public "
+        "search screen and a separate formula check were implemented. The prototype holds 45 objects. "
+        "The query “stevia” returns two items: permitted steviol glycosides E960 and the leaf powder, syrup "
+        "and extracts excluded on 27 February 2024. Fifteen automated tests pass. Numeric limits for a "
+        "particular food were not invented.",
+    )
+    para(
+        doc,
+        "Potential practical applications: a training check of a formula and its labelling; preparation "
+        "for reading the annexes of the regulation; comparison of one additive in the EAEU and in the EU. "
+        "The prototype does not replace the text of TR CU 029/2012 and is not a document for a declaration "
+        "of conformity.",
     )
 
     para(doc, "ПЕРЕЧЕНЬ СОКРАЩЕНИЙ И ОБОЗНАЧЕНИЙ", center=True, bold=True, indent=False, space_before=12)
@@ -933,7 +1032,7 @@ def speech() -> Document:
 
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
-    note = "29 страниц"
+    note = "30"
     report = build(note)
     report_path = OUT / "Курсовой_проект_Сенкель_БЗ_пищевые_добавки.docx"
     report.save(report_path)

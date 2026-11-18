@@ -1,15 +1,17 @@
 {% extends "base.html" %}
-{% block title %}Поиск по базе знаний{% endblock %}
+{% block title %}Пищевые добавки | Поиск{% endblock %}
 {% block body %}
 <section class="search-block">
-  <h1>Поиск по базе знаний</h1>
+  <h1>Поиск по пищевым добавкам</h1>
   <form class="search-form" action="{{ url_for('index') }}" method="get">
     {% if group %}<input type="hidden" name="group" value="{{ group }}">{% endif %}
     {% if status %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
-    <input type="search" name="q" value="{{ query }}" placeholder="Индекс, имя или функция: E330, стевия, сода" autofocus>
-    <button type="submit">Найти</button>
+    <button type="submit" aria-label="Найти">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 16l5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+    <input type="search" name="q" value="{{ query }}" placeholder="Название или индекс добавки" autofocus>
   </form>
-  <p class="hint">Запрос ищет индекс, русское и английское имя, бытовое название. Разделы сверху сужают технологическую функцию.</p>
+  <p class="hint">Можно писать E330, стевию, соду или глутамат. Разделы сверху выбирают функцию.</p>
   <nav class="status-row">
     {% for key, label in status_links %}
     <a href="{{ url_for('index', q=query, group=group, status=key) }}" {% if status == key %}class="is-on"{% endif %}>{{ label }}</a>

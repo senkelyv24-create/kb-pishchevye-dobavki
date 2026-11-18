@@ -3,23 +3,47 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}База знаний по пищевым добавкам{% endblock %}</title>
+  <title>{% block title %}Пищевые добавки{% endblock %}</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23146b56'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-family='Arial' font-size='16' font-weight='700' fill='white'%3EE%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
   <header class="mast">
-    <div class="mast-top">
-      <a class="brand" href="{{ url_for('index') }}">БЗ · ДОБАВКИ</a>
+    <div class="strip">
+      <p>Часто открывают</p>
+      <div class="strip-row">
+        <a href="{{ url_for('detail', code='E330') }}"><b>E330</b><span>Лимонная кислота</span></a>
+        <a href="{{ url_for('detail', code='E621') }}"><b>E621</b><span>Глутамат натрия</span></a>
+        <a href="{{ url_for('detail', code='E171') }}"><b>E171</b><span>Диоксид титана</span></a>
+        <a href="{{ url_for('detail', code='E960') }}"><b>E960</b><span>Стевиолгликозиды</span></a>
+        <a href="{{ url_for('detail', code='E102') }}"><b>E102</b><span>Тартразин</span></a>
+        <a href="{{ url_for('detail', code='E202') }}"><b>E202</b><span>Сорбат калия</span></a>
+        <a href="{{ url_for('detail', code='E500') }}"><b>E500</b><span>Пищевая сода</span></a>
+        <a href="{{ url_for('detail', code='E211') }}"><b>E211</b><span>Бензоат натрия</span></a>
+      </div>
+    </div>
+    <div class="mast-bar">
+      <span class="edition">Справочник по ТР ТС 029/2012</span>
       <nav class="tools">
         <a href="{{ url_for('index') }}">Поиск</a>
-        <a href="{{ url_for('check') }}">Проверка состава</a>
+        <a class="tool-strong" href="{{ url_for('check') }}">Проверка состава</a>
+        <a href="{{ url_for('static', filename='kak-ustroen-kod.html') }}">Как устроен код</a>
       </nav>
     </div>
-    <p class="wordmark">БАЗА ЗНАНИЙ</p>
+    <a class="wordmark" href="{{ url_for('index') }}">Пищевые добавки</a>
     <nav class="sections">
+      {% set shorts = {
+        'color': 'Красители',
+        'preservative': 'Консерванты',
+        'antioxidant': 'Антиокислители',
+        'acid': 'Кислоты',
+        'sweetener': 'Подсластители',
+        'texture': 'Загустители',
+        'flavor': 'Вкус'
+      } %}
       <a href="{{ url_for('index') }}" {% if not group %}class="is-on"{% endif %}>Все</a>
       {% for key, label in groups.items() %}
-      <a href="{{ url_for('index', group=key, q=query|default('', true), status=status|default('', true)) }}" {% if group == key %}class="is-on"{% endif %}>{{ label }}</a>
+      <a href="{{ url_for('index', group=key, q=query|default('', true), status=status|default('', true)) }}" {% if group == key %}class="is-on"{% endif %}>{{ shorts.get(key, label) }}</a>
       {% endfor %}
     </nav>
   </header>
@@ -27,7 +51,7 @@
     {% block body %}{% endblock %}
   </main>
   <footer>
-    <p>Прототип курсового проекта. Факты — приложение 2 ТР ТС 029/2012 в редакции от 27.02.2024. Это не замена текста регламента: уровень для конкретного продукта смотрят в указанном приложении.</p>
+    <p>Пищевые добавки — прототип базы знаний. Факты взяты из приложения 2 ТР ТС 029/2012 в редакции от 27.02.2024. Норму для конкретного продукта смотрят в указанном приложении регламента.</p>
   </footer>
 </body>
 </html>
