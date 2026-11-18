@@ -21,12 +21,6 @@ python -m unittest tests.test_engine
 
 Пояснительная записка: `docs/Курсовой_проект_Сенкель_БЗ_пищевые_добавки.docx`. Текст доклада: `docs/Доклад_Сенкель_БЗ_пищевые_добавки.docx`.
 
-Чтобы выложить код на GitHub, в этой папке после входа в GitHub:
+## GitHub
 
-```
-git add .
-git commit -m "Прототип базы знаний по пищевым добавкам"
-gh repo create kb-pishchevye-dobavki --public --source=. --push
-```
-
-Полученную ссылку нужно вписать в главу 3 записки, в строку «Ссылка на проект в Git».
+Публичный репозиторий: https://github.com/senkelyv24-create/kb-pishchevye-dobavki

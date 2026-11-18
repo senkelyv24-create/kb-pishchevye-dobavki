@@ -14,10 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 IMG = ROOT / "docs" / "img"
 OUT = ROOT / "docs"
 
-GIT_URL = (
-    "репозиторий подготовлен локально в каталоге kb-pishchevye-dobavki; "
-    "публичная ссылка GitHub вставляется в эту строку после выгрузки"
-)
+GIT_URL = "https://github.com/senkelyv24-create/kb-pishchevye-dobavki"
 
 
 def set_run_font(run, size=14, bold=False, italic=False):
