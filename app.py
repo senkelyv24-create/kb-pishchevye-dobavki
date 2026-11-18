@@ -1,10 +1,12 @@
 """Прототип базы знаний по пищевым добавкам."""
 
-from flask import Flask, abort, render_template, request
+from flask import Flask, abort, redirect, render_template, request, url_for
 
-from kb.engine import CATEGORIES, GROUP_LABELS, consult, get_additive, search
+from kb.engine import CATEGORIES, GROUP_LABELS, consult, get_additive, get_by_slug, search
 
 app = Flask(__name__)
+
+FEATURED = ["E330", "E621", "E171", "E960", "E102", "E202", "E500", "E211"]
 
 STATUS_LINKS = [
     ("", "Все статусы"),
@@ -21,10 +23,16 @@ def inject_nav():
         "groups": GROUP_LABELS,
         "status_links": STATUS_LINKS,
         "categories": CATEGORIES,
+        "featured": [get_additive(code) for code in FEATURED],
     }
 
 
 @app.get("/")
+def root():
+    return redirect(url_for("index"))
+
+
+@app.get("/poisk")
 def index():
     query = request.args.get("q", "")
     group = request.args.get("group", "")
@@ -44,8 +52,16 @@ def index():
 
 
 @app.get("/a/<code>")
-def detail(code: str):
+def detail_by_code(code: str):
     item = get_additive(code)
+    if item is None:
+        abort(404)
+    return redirect(url_for("detail", slug=item["slug"]))
+
+
+@app.get("/<slug>")
+def detail(slug: str):
+    item = get_by_slug(slug)
     if item is None:
         abort(404)
     related = search(item["functions"][0], item["group"], "", 1, 5)["items"]
@@ -54,6 +70,7 @@ def detail(code: str):
 
 
 @app.route("/check", methods=["GET", "POST"])
+@app.route("/proverka", methods=["GET", "POST"])
 def check():
     source = request.form if request.method == "POST" else request.args
     raw = source.get("codes", "")

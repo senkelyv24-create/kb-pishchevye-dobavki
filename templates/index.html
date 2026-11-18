@@ -29,7 +29,7 @@
   <ol class="hits">
     {% for item in result["items"] %}
     <li>
-      <a href="{{ url_for('detail', code=item.code) }}">
+      <a href="{{ url_for('detail', slug=item.slug) }}">
         <div class="hit-kicker">
           <span>{{ item.functions[0] }}</span>
           <span class="pill pill-{{ item.status }}">{{ "Исключена" if item.status == "excluded" else "В перечне" }}</span>

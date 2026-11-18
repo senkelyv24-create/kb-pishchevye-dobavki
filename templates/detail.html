@@ -42,8 +42,8 @@
   <ol class="hits">
     {% for row in related %}
     <li>
-      <a href="{{ url_for('detail', code=row.code) }}">
-        <div class="hit-kicker"><span>{{ row.code }}</span></div>
+      <a href="{{ url_for('detail', slug=row.slug) }}">
+        <div class="hit-kicker"><span>{{ row.functions[0] }}</span></div>
         <h2>{{ row.name_ru }}</h2>
         <p>{{ row.summary }}</p>
       </a>

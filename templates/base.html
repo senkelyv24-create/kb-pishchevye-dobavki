@@ -12,14 +12,9 @@
     <div class="strip">
       <p>Часто открывают</p>
       <div class="strip-row">
-        <a href="{{ url_for('detail', code='E330') }}"><b>E330</b><span>Лимонная кислота</span></a>
-        <a href="{{ url_for('detail', code='E621') }}"><b>E621</b><span>Глутамат натрия</span></a>
-        <a href="{{ url_for('detail', code='E171') }}"><b>E171</b><span>Диоксид титана</span></a>
-        <a href="{{ url_for('detail', code='E960') }}"><b>E960</b><span>Стевиолгликозиды</span></a>
-        <a href="{{ url_for('detail', code='E102') }}"><b>E102</b><span>Тартразин</span></a>
-        <a href="{{ url_for('detail', code='E202') }}"><b>E202</b><span>Сорбат калия</span></a>
-        <a href="{{ url_for('detail', code='E500') }}"><b>E500</b><span>Пищевая сода</span></a>
-        <a href="{{ url_for('detail', code='E211') }}"><b>E211</b><span>Бензоат натрия</span></a>
+        {% for item in featured %}
+        <a href="{{ url_for('detail', slug=item.slug) }}"><b>{{ item.name_ru }}</b><span>{{ item.code }}</span></a>
+        {% endfor %}
       </div>
     </div>
     <div class="mast-bar">

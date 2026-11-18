@@ -40,10 +40,45 @@ def _load(name: str):
         return json.load(handle)
 
 
+_TRANSLIT = {
+    "а": "a", "б": "b", "в": "v", "г": "g", "д": "d", "е": "e", "ё": "e",
+    "ж": "zh", "з": "z", "и": "i", "й": "y", "к": "k", "л": "l", "м": "m",
+    "н": "n", "о": "o", "п": "p", "р": "r", "с": "s", "т": "t", "у": "u",
+    "ф": "f", "х": "h", "ц": "ts", "ч": "ch", "ш": "sh", "щ": "sch",
+    "ъ": "", "ы": "y", "ь": "", "э": "e", "ю": "yu", "я": "ya",
+}
+
+
+def make_slug(name: str) -> str:
+    """Адрес страницы из названия: «Бензоат натрия» → benzoat-natriya."""
+    source = (name or "").split(":")[0].strip().lower().replace("ё", "е")
+    chars = []
+    for char in source:
+        if char in _TRANSLIT:
+            chars.append(_TRANSLIT[char])
+        elif char.isascii() and char.isalnum():
+            chars.append(char)
+        else:
+            chars.append("-")
+    return "-".join(part for part in "".join(chars).split("-") if part)
+
+
+def _assign_slugs(items: list) -> None:
+    used = set()
+    for item in items:
+        slug = make_slug(item["name_ru"])
+        if slug in used:
+            slug = f"{slug}-{item['code'].lower()}"
+        used.add(slug)
+        item["slug"] = slug
+
+
 ADDITIVES = _load("additives.json")
 RULES = _load("rules.json")
 ONTOLOGY = _load("ontology.json")
+_assign_slugs(ADDITIVES)
 BY_CODE = {item["code"].upper(): item for item in ADDITIVES}
+BY_SLUG = {item["slug"]: item for item in ADDITIVES}
 
 
 def normalize(text: str) -> str:
@@ -62,6 +97,10 @@ def get_additive(code: str):
     if key in BY_CODE:
         return BY_CODE[key]
     return None
+
+
+def get_by_slug(slug: str):
+    return BY_SLUG.get((slug or "").strip().lower())
 
 
 def search(query: str = "", group: str = "", status: str = "", page: int = 1, per_page: int = 8):

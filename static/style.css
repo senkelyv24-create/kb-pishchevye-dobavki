@@ -43,8 +43,8 @@ a { color: inherit; }
   color: white;
   background: var(--green-deep);
 }
-.strip-row b { font-family: "Segoe UI", sans-serif; font-size: 18px; }
-.strip-row span { font-family: "Segoe UI", sans-serif; font-size: 12px; line-height: 1.25; }
+.strip-row b { font-family: "Segoe UI", sans-serif; font-size: 14px; font-weight: 650; line-height: 1.25; }
+.strip-row span { font-family: "Segoe UI", sans-serif; font-size: 12px; line-height: 1.25; opacity: 0.85; }
 .mast-bar { display: flex; justify-content: space-between; align-items: center; padding: 8px 0 4px; }
 .edition, .tools, .tools a, .sections a, .hint, .count, .empty, footer, .en, .back, .status-row a, button {
   font-family: "Segoe UI", sans-serif;
