@@ -1,29 +1,19 @@
-"""Загрузка фактов и прямой вывод по правилам базы знаний."""
+"""Поиск и прямой вывод. Сопоставление и правила выполняются запросами SQL."""
 
 from __future__ import annotations
 
-import json
+import sqlite3
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+from kb.norm import code_key, normalize
+
+ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "data"
+SQL = ROOT / "sql"
+DB_PATH = DATA / "additives.db"
+STAMP = DATA / ".db-stamp"
 
 LEVEL_RANK = {"info": 1, "check": 2, "warn": 3, "forbid": 4}
-
-GROUP_LABELS = {
-    "color": "Красители",
-    "preservative": "Консерванты",
-    "antioxidant": "Антиокислители",
-    "acid": "Регуляторы кислотности",
-    "sweetener": "Подсластители",
-    "texture": "Эмульгаторы и загустители",
-    "flavor": "Усилители вкуса",
-}
-
-STATUS_LABELS = {
-    "allowed": "В перечне ЕАЭС",
-    "excluded": "Исключена в 2024",
-}
 
 CATEGORIES = [
     "",
@@ -34,103 +24,127 @@ CATEGORIES = [
     "общая пищевая продукция",
 ]
 
-
-def _load(name: str):
-    with (DATA / name).open(encoding="utf-8") as handle:
-        return json.load(handle)
-
-
-_TRANSLIT = {
-    "а": "a", "б": "b", "в": "v", "г": "g", "д": "d", "е": "e", "ё": "e",
-    "ж": "zh", "з": "z", "и": "i", "й": "y", "к": "k", "л": "l", "м": "m",
-    "н": "n", "о": "o", "п": "p", "р": "r", "с": "s", "т": "t", "у": "u",
-    "ф": "f", "х": "h", "ц": "ts", "ч": "ch", "ш": "sh", "щ": "sch",
-    "ъ": "", "ы": "y", "ь": "", "э": "e", "ю": "yu", "я": "ya",
-}
+_SCORED = (SQL / "scored.sql").read_text(encoding="utf-8")
+_COUNT_SQL = f"WITH scored AS (\n{_SCORED}\n)\nSELECT COUNT(*) AS total FROM scored WHERE score > 0"
+_PAGE_SQL = (
+    f"WITH scored AS (\n{_SCORED}\n)\n"
+    "SELECT * FROM scored WHERE score > 0 ORDER BY score DESC, code LIMIT :limit OFFSET :offset"
+)
+_CONSULT = (SQL / "consult.sql").read_text(encoding="utf-8")
+_RULE_SQL, _COMPOSITION_SQL = _CONSULT.split("-- @@composition", 1)
+_RULE_SQL = _RULE_SQL.split("-- @@additive", 1)[1]
 
 
-def make_slug(name: str) -> str:
-    """Адрес страницы из названия: «Бензоат натрия» → benzoat-natriya."""
-    source = (name or "").split(":")[0].strip().lower().replace("ё", "е")
-    chars = []
-    for char in source:
-        if char in _TRANSLIT:
-            chars.append(_TRANSLIT[char])
-        elif char.isascii() and char.isalnum():
-            chars.append(char)
-        else:
-            chars.append("-")
-    return "-".join(part for part in "".join(chars).split("-") if part)
+def _connect() -> sqlite3.Connection:
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    return conn
 
 
-def _assign_slugs(items: list) -> None:
-    used = set()
-    for item in items:
-        slug = make_slug(item["name_ru"])
-        if slug in used:
-            slug = f"{slug}-{item['code'].lower()}"
-        used.add(slug)
-        item["slug"] = slug
+def ensure_db() -> None:
+    seed = SQL / "seed.sql"
+    schema = SQL / "schema.sql"
+    stamp = f"{seed.stat().st_mtime:.6f}:{schema.stat().st_mtime:.6f}"
+    if DB_PATH.exists() and STAMP.exists() and STAMP.read_text(encoding="utf-8") == stamp:
+        return
+    if DB_PATH.exists():
+        DB_PATH.unlink()
+    conn = sqlite3.connect(DB_PATH)
+    conn.executescript(schema.read_text(encoding="utf-8"))
+    conn.executescript(seed.read_text(encoding="utf-8"))
+    conn.close()
+    STAMP.write_text(stamp, encoding="utf-8")
 
 
-ADDITIVES = _load("additives.json")
-RULES = _load("rules.json")
-ONTOLOGY = _load("ontology.json")
-_assign_slugs(ADDITIVES)
-BY_CODE = {item["code"].upper(): item for item in ADDITIVES}
-BY_SLUG = {item["slug"]: item for item in ADDITIVES}
+def _split_rows(conn: sqlite3.Connection, table: str, column: str, ids: list[int], order: str) -> dict:
+    if not ids:
+        return {}
+    marks = ",".join("?" * len(ids))
+    found: dict[int, list] = {}
+    query = f"SELECT additive_id, {column} AS value FROM {table} WHERE additive_id IN ({marks}) ORDER BY {order}"
+    for row in conn.execute(query, ids):
+        found.setdefault(row["additive_id"], []).append(row["value"])
+    return found
 
 
-def normalize(text: str) -> str:
-    value = (text or "").strip().lower().replace("ё", "е")
-    for src, dst in (("е", "e"), ("а", "a"), ("о", "o"), ("р", "p"), ("с", "c"), ("х", "x"), ("у", "y"), ("к", "k"), ("м", "m"), ("т", "t"), ("н", "h"), ("в", "b")):
-        value = value.replace(src, dst)
-    return " ".join(value.split())
+def _hydrate(conn: sqlite3.Connection, rows: list) -> list[dict]:
+    ids = [row["id"] for row in rows]
+    aliases = _split_rows(conn, "additive_alias", "alias", ids, "id")
+    functions = _split_rows(conn, "additive_function", "name_ru", ids, "ord")
+    annexes = _split_rows(conn, "additive_annex", "annex", ids, "ord")
+    warnings = _split_rows(conn, "additive_warning", "warning", ids, "warning")
+    items = []
+    for row in rows:
+        item = {
+            "code": row["code"],
+            "name_ru": row["name_ru"],
+            "name_en": row["name_en"],
+            "aliases": aliases.get(row["id"], []),
+            "group": row["group_code"],
+            "functions": functions.get(row["id"], []),
+            "status": row["status"],
+            "annexes": annexes.get(row["id"], []),
+            "changed_2024": bool(row["changed_2024"]),
+            "warnings": warnings.get(row["id"], []),
+            "origin": row["origin"],
+            "summary": row["summary"],
+            "eu_note": row["eu_note"],
+            "slug": row["slug"],
+        }
+        if "score" in row.keys():
+            item["score"] = row["score"]
+            item["reason"] = row["reason"]
+        items.append(item)
+    return items
 
 
-def code_key(text: str) -> str:
-    return normalize(text).replace(" ", "").upper().replace("Е", "E")
+def _one(conn: sqlite3.Connection, where: str, value: str):
+    row = conn.execute(f"SELECT * FROM additive WHERE {where} = ?", (value,)).fetchone()
+    if row is None:
+        return None
+    return _hydrate(conn, [row])[0]
 
 
 def get_additive(code: str):
     key = code_key(code)
-    if key in BY_CODE:
-        return BY_CODE[key]
-    return None
+    conn = _connect()
+    try:
+        return _one(conn, "code", key)
+    finally:
+        conn.close()
 
 
 def get_by_slug(slug: str):
-    return BY_SLUG.get((slug or "").strip().lower())
+    conn = _connect()
+    try:
+        return _one(conn, "slug", (slug or "").strip().lower())
+    finally:
+        conn.close()
 
 
 def search(query: str = "", group: str = "", status: str = "", page: int = 1, per_page: int = 8):
     needle = normalize(query)
-    compact = needle.replace(" ", "")
-    found = []
-    for item in ADDITIVES:
-        if group and item["group"] != group:
-            continue
-        if status == "excluded" and item["status"] != "excluded":
-            continue
-        if status == "allowed" and item["status"] != "allowed":
-            continue
-        if status == "warning" and not item["warnings"]:
-            continue
-        if status == "changed" and not item["changed_2024"]:
-            continue
-        score, reason = _score(item, needle, compact)
-        if needle and score <= 0:
-            continue
-        if not needle:
-            score, reason = 1, "раздел каталога"
-        found.append({**item, "score": score, "reason": reason})
-    found.sort(key=lambda row: (-row["score"], row["code"]))
-    total = len(found)
-    pages = max(1, (total + per_page - 1) // per_page)
-    page = min(max(page, 1), pages)
-    start = (page - 1) * per_page
+    params = {
+        "needle": needle,
+        "compact": needle.replace(" ", ""),
+        "group_code": group or "",
+        "status": status or "",
+    }
+    conn = _connect()
+    try:
+        total = conn.execute(_COUNT_SQL, params).fetchone()["total"]
+        pages = max(1, (total + per_page - 1) // per_page)
+        page = min(max(page, 1), pages)
+        rows = conn.execute(
+            _PAGE_SQL,
+            {**params, "limit": per_page, "offset": (page - 1) * per_page},
+        ).fetchall()
+        items = _hydrate(conn, rows)
+    finally:
+        conn.close()
     return {
-        "items": found[start : start + per_page],
+        "items": items,
         "total": total,
         "page": page,
         "pages": pages,
@@ -138,92 +152,9 @@ def search(query: str = "", group: str = "", status: str = "", page: int = 1, pe
     }
 
 
-def _score(item: dict, needle: str, compact: str) -> tuple[int, str]:
-    if not needle:
-        return 0, ""
-    code = item["code"].lower()
-    code_compact = code.replace("-", "")
-    names = [normalize(item["name_ru"]), normalize(item["name_en"])]
-    aliases = [normalize(alias) for alias in item["aliases"]]
-    functions = [normalize(fn) for fn in item["functions"]]
-    if compact in {code, code_compact, code.replace("e", "")}:
-        return 100, "точный индекс"
-    if compact.startswith("e") and code.startswith(compact):
-        return 70, "индекс начинается с запроса"
-    if any(needle == alias for alias in aliases):
-        return 90, "совпало дополнительное имя"
-    if any(needle == name for name in names):
-        return 85, "совпало наименование"
-    if any(needle in name for name in names):
-        return 55, "часть наименования"
-    if any(needle in alias or alias in needle for alias in aliases):
-        return 50, "близкое имя"
-    if any(needle in fn for fn in functions):
-        return 30, "технологическая функция"
-    if needle in normalize(item["summary"]):
-        return 15, "слово из описания"
-    return 0, ""
-
-
 def parse_codes(raw: str) -> list[str]:
     chunks = raw.replace(";", ",").replace("\n", ",").split(",")
-    codes = []
-    for chunk in chunks:
-        piece = chunk.strip()
-        if piece:
-            codes.append(piece)
-    return codes
-
-
-def consult(raw_codes: str, category: str = "", polyol_share: str = ""):
-    share = _parse_share(polyol_share)
-    selected = []
-    unknown = []
-    for raw in parse_codes(raw_codes):
-        item = get_additive(raw)
-        if item is None:
-            unknown.append(raw.strip())
-        elif item["code"] not in {row["code"] for row in selected}:
-            selected.append(item)
-
-    fired = []
-    seen = set()
-    for rule in RULES:
-        if rule["scope"] == "composition":
-            if _when(rule["when"], None, selected, category, share):
-                key = rule["id"]
-                if key not in seen:
-                    seen.add(key)
-                    fired.append(_hit(rule, None))
-            continue
-        for item in selected:
-            if _when(rule["when"], item, selected, category, share):
-                key = (rule["id"], item["code"])
-                if key not in seen:
-                    seen.add(key)
-                    fired.append(_hit(rule, item))
-
-    for raw in unknown:
-        fired.append(
-            {
-                "id": "R00",
-                "title": "Индекса нет в прототипе",
-                "level": "check",
-                "code": raw,
-                "text": f"«{raw}» нет среди загруженных фактов. Приложение 2 — закрытый перечень: добавку вне него не применяют, пока её туда не включат. Сначала проверьте написание индекса.",
-            }
-        )
-
-    fired.sort(key=lambda row: (-LEVEL_RANK[row["level"]], row["id"], row.get("code") or ""))
-    worst = max((LEVEL_RANK[row["level"]] for row in fired), default=0)
-    return {
-        "selected": selected,
-        "unknown": unknown,
-        "fired": fired,
-        "verdict": _verdict(worst, selected, unknown),
-        "category": category,
-        "polyol_share": share,
-    }
+    return [chunk.strip() for chunk in chunks if chunk.strip()]
 
 
 def _parse_share(value: str):
@@ -236,40 +167,64 @@ def _parse_share(value: str):
         return None
 
 
-def _when(cond: dict, item, selected, category: str, share) -> bool:
-    if "requires_codes" in cond:
-        have = {row["code"] for row in selected}
-        if not set(cond["requires_codes"]).issubset(have):
-            return False
-    if item is not None:
-        if "status" in cond and item["status"] != cond["status"]:
-            return False
-        if "warning" in cond and cond["warning"] not in item["warnings"]:
-            return False
-        if "code" in cond and item["code"] != cond["code"]:
-            return False
-        if "changed_2024" in cond and bool(item["changed_2024"]) != bool(cond["changed_2024"]):
-            return False
-        if "polyol_unset" in cond and share is not None:
-            return False
-        if "polyol_share_gt" in cond and (share is None or share <= cond["polyol_share_gt"]):
-            return False
-        if "polyol_share_le" in cond and (share is None or share > cond["polyol_share_le"]):
-            return False
-    if "category" in cond and category != cond["category"]:
-        return False
-    if "category_not_in" in cond and category in cond["category_not_in"]:
-        return False
-    return True
+def consult(raw_codes: str, category: str = "", polyol_share: str = ""):
+    share = _parse_share(polyol_share)
+    selected = []
+    unknown = []
+    seen = set()
+    for raw in parse_codes(raw_codes):
+        item = get_additive(raw)
+        if item is None:
+            unknown.append(raw.strip())
+        elif item["code"] not in seen:
+            seen.add(item["code"])
+            selected.append(item)
 
+    params = {
+        "share_set": 0 if share is None else 1,
+        "share": -1.0 if share is None else share,
+        "category": category or "",
+    }
+    conn = _connect()
+    try:
+        conn.execute("CREATE TEMP TABLE ask(code TEXT PRIMARY KEY)")
+        conn.executemany("INSERT INTO ask(code) VALUES (?)", [(item["code"],) for item in selected])
+        fired_rows = list(conn.execute(_RULE_SQL, params)) + list(conn.execute(_COMPOSITION_SQL, params))
+    finally:
+        conn.close()
 
-def _hit(rule: dict, item) -> dict:
+    fired = [
+        {
+            "id": row["id"],
+            "title": row["title"],
+            "level": row["level"],
+            "code": row["code"],
+            "text": row["text"],
+        }
+        for row in fired_rows
+    ]
+    for raw in unknown:
+        fired.append(
+            {
+                "id": "R00",
+                "title": "Индекса нет в прототипе",
+                "level": "check",
+                "code": raw,
+                "text": (
+                    f"«{raw}» нет среди загруженных фактов. Приложение 2 — закрытый перечень: "
+                    "добавку вне него не применяют, пока её туда не включат. Сначала проверьте написание индекса."
+                ),
+            }
+        )
+    fired.sort(key=lambda row: (-LEVEL_RANK[row["level"]], row["id"], row.get("code") or ""))
+    worst = max((LEVEL_RANK[row["level"]] for row in fired), default=0)
     return {
-        "id": rule["id"],
-        "title": rule["title"],
-        "level": rule["level"],
-        "code": None if item is None else item["code"],
-        "text": rule["text"],
+        "selected": selected,
+        "unknown": unknown,
+        "fired": fired,
+        "verdict": _verdict(worst, selected, unknown),
+        "category": category,
+        "polyol_share": share,
     }
 
 
@@ -299,3 +254,14 @@ def _verdict(worst: int, selected, unknown) -> dict:
         "title": "По правилам прототипа запрета нет",
         "text": "Сработавшие сведения не мешают применению в принципе. Максимальный уровень для вида продукции всё равно берут из указанного приложения регламента.",
     }
+
+
+ensure_db()
+_labels = _connect()
+try:
+    GROUP_LABELS = {
+        row["code"]: row["name_ru"]
+        for row in _labels.execute("SELECT code, name_ru FROM func_group ORDER BY ord")
+    }
+finally:
+    _labels.close()

@@ -4,3 +4,5 @@ __pycache__/
 *.pyc
 .extract/
 .tools/
+data/*.db
+data/.db-stamp
